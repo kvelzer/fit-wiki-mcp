@@ -1,6 +1,6 @@
 # FIT Wiki MCP
 
-Osobní MCP server pro **studentskou, neoficiální [FIT Wiki](https://fit-wiki.cz/)**. Umí katalog předmětů, navigaci podle sekcí, čtení stránek v Markdownu, fulltext, stahování příloh, lokální OCR a předání obrázků modelu klienta pro rukopis a matematiku. Wiki nikdy neupravuje.
+Osobní MCP server pro **studentskou, neoficiální [FIT Wiki](https://fit-wiki.cz/)**. Umí katalog předmětů, navigaci podle sekcí, čtení stránek v Markdownu, diskuse pod stránkami, fulltext, stahování příloh, lokální OCR a předání obrázků modelu klienta pro rukopis a matematiku. Wiki nikdy neupravuje.
 
 ## Instalace
 
@@ -60,6 +60,7 @@ Generátor jen vypíše konfiguraci; fragment sluč se stávající konfigurací
 | `get_course_index(course_id, cursor?, limit?, refresh?)` | Hierarchie sekcí a seznam odkazů předmětu |
 | `list_pages(course_id, section_id?, cursor?, limit?, refresh?)` | Odkazy vybrané sekce včetně podsekcí, stránek i příloh |
 | `get_page(page_id, section?, cursor?, max_chars?, refresh?)` | Markdown, zdroj a pokračování dlouhé stránky |
+| `get_comments(page_id, author?, comment_id?, cursor?, limit?, max_chars?, refresh?)` | Komentáře včetně autora, data, odpovědí, skrytého obsahu a příloh |
 | `search(query, course_id?, cursor?, limit?, refresh?)` | Wiki fulltext a již získané přepisy; bez předmětu studijní namespace `škola` |
 | `download_attachment(attachment_id, refresh?)` | Originál přílohy v soukromém lokálním úložišti |
 | `read_attachment(attachment_id, page?, mode?, max_chars?, cursor?)` | Jedna strana PDF/obrázek: uložený přepis, nativní text nebo lokální OCR |
@@ -71,6 +72,24 @@ Začni `list_courses(query="BI-DBS")`, použij vrácené `course_id` v `get_cour
 Seznamy vracejí `next_cursor`, dlouhý text rovněž. Kurzor je vázaný na dotaz, obsah a proces serveru; po restartu či změně obsahu začni znovu bez něj. `read_attachment` používá čísla stran od 1 a vrací `next_page`. `mode` je `auto`, `native` nebo `local_ocr`.
 
 Fulltext přijímá běžná slova a uvozované fráze, nikoliv operátory pro změnu namespace. Vlastní index předmětu se prohledává zvlášť, protože jej wiki namespace filtr nezahrnuje. Výsledek rozlišuje `wiki_fulltext`, `course_index` a `local_transcription`. Pole `metadata.partial` upozorňuje, že OCR index pokrývá jen již zpracované materiály a úplnost cizího wiki indexu nelze zaručit.
+
+### Komentáře a obrázky v diskusi
+
+Diskuse se čte samostatně přes `get_comments`, protože export používaný pro `get_page` ji neobsahuje. Například:
+
+```json
+{
+  "page_id": "škola:předměty:bi-pst:pst_test_2023-10-11_novak-11-00"
+}
+```
+
+Autor se filtruje podřetězcem bez ohledu na velikost písmen a diakritiku. `comment_id` vybere konkrétní komentář. Výsledek obsahuje `comment_id`, `parent_id` odpovědi, `author`, `published_at`, Markdown a přímý odkaz na komentář. Neuvedený autor nebo čas jsou `null`. Do textu se zahrne i rozbalovací obsah, ovládání formulářů a přepínače se odstraní.
+
+Přílohy jsou v `attachments` s hotovým `attachment_id` pro `read_attachment` nebo `get_material_image`; samotný seznam komentářů jejich obrazový obsah nepřepisuje. Odkaz komentáře na médium se zaznamená pro předmětové hledání získaných přepisů.
+
+`limit` omezuje počet vrácených částí (1–20, výchozí 10), `max_chars` délku jedné části (100–10 000, výchozí 5000). Dlouhý komentář má opakované ID a pole `part`/`parts`; přes `next_cursor` lze získat celý text. `total` je počet komentářů po filtrování, `page_total` počet všech komentářů stránky a `total_parts` počet částí po rozdělení. Filtr autora nezahrne automaticky odpovědi jiných autorů; jejich vazby zůstávají v `parent_id`.
+
+`discussion_available=false` odlišuje stránku bez dostupné diskuse od dostupné prázdné diskuse. Nerozpoznané nebo poškozené rozložení vrátí `PARSE_ERROR` místo tichého vynechání příspěvků. Cache diskuse platí nejvýše 5 minut, `refresh=true` vynutí nové čtení. Wiki fulltext nepovažuj za úplné hledání v komentářích; k jejich čtení slouží tento nástroj. Publikování komentářů není součástí API.
 
 ### OCR a model s viděním
 
@@ -95,7 +114,7 @@ Volby prostředí a aliasy jsou v [.env.example](.env.example). `FITWIKI_DATA_DI
 
 ## Resources
 
-`fitwiki://courses`, `fitwiki://courses/{course_id}/index` a `fitwiki://pages/{page_id}` vracejí JSON ze stejné služby jako nástroje. Dvojtečky v identifikátoru lze zakódovat jako `%3A`. Pro stránkování použij nástroje; základní workflow nezávisí na podpoře resources klientem.
+`fitwiki://courses`, `fitwiki://courses/{course_id}/index`, `fitwiki://pages/{page_id}` a `fitwiki://pages/{page_id}/comments` vracejí JSON ze stejné služby jako nástroje. Dvojtečky v identifikátoru lze zakódovat jako `%3A`. Pro stránkování použij nástroje; základní workflow nezávisí na podpoře resources klientem.
 
 ## Ověření a řešení chyb
 

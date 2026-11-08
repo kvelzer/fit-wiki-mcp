@@ -82,6 +82,21 @@ async def run(mode: str) -> dict:
                 rendered.structured_content["height"],
             ],
         }
+        discussion = (
+            await call(
+                "get_comments", page_id="škola:předměty:bi-pst:pst_test_2023-10-11_novak-11-00"
+            )
+        ).structured_content
+        selected = (
+            await call("get_comments", page_id=discussion["page_id"], author=next(item["author"] for item in discussion["items"] if item["author"] and item["attachments"]))
+        ).structured_content
+        assert selected["total"] == 1 and selected["items"][0]["attachments"]
+        report["comments"] = {
+            "page_total": discussion["page_total"],
+            "author_matches": selected["total"],
+            "hidden_attachments": len(selected["items"][0]["attachments"]),
+            "replies": sum(item["parent_id"] is not None for item in discussion["items"]),
+        }
         t0 = time.monotonic()
         warm = (await call("get_page", page_id="škola:předměty:bi-dbs")).structured_content
         report["warm_read_ms"] = round((time.monotonic() - t0) * 1000, 1)

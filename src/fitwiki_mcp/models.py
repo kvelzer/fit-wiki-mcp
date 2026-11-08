@@ -89,3 +89,26 @@ class Transcription(Model):
     verified: bool
     partial: bool
     warnings: list[str]
+
+
+class Comment(Model):
+    comment_id: str
+    parent_id: str | None
+    author: str | None
+    published_at: str | None
+    source_url: str
+    markdown: str
+    links: list[dict[str, Any]]
+    attachments: list[dict[str, str]]
+    part: int
+    parts: int
+    total_chars: int
+
+
+class Comments(Listing):
+    items: list[Comment]
+    page_id: str
+    source_url: str
+    discussion_available: bool
+    page_total: int
+    total_parts: int

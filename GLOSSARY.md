@@ -27,3 +27,7 @@ _Avoid_: Kategorie jako předpoklad stejné pevné struktury všech předmětů
 **Přepis materiálu**:
 Textové zachycení obsahu přílohy nebo obrázku, včetně případných matematických vzorců. Je odvozené od originálu a může obsahovat chyby rozpoznání.
 _Avoid_: Ověřené řešení jako označení strojového přepisu
+
+**Komentář**:
+Příspěvek v diskusi pod konkrétní stránkou wiki, případně odpověď na jiný komentář. Může obsahovat text i přílohy, například obrázek řešení.
+_Avoid_: Řešení jako synonymum každého komentáře
