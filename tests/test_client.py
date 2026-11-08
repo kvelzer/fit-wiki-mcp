@@ -87,7 +87,11 @@ def test_denied_with_valid_session_does_not_relogin():
 def test_redirect_cannot_send_auth_to_external_host():
     c, s = client([Response(status=307, headers={"Location": "https://evil.test/collect"})])
     with pytest.raises(WikiError, match="INVALID_URL"):
-        c._send("POST", "https://fit-wiki.cz/doku.php", data={"p": "synthetic-password"})
+        c._send(
+            "POST",
+            "https://fit-wiki.cz/doku.php",
+            data={"do": "login", "u": "synthetic-user", "p": "synthetic-password"},
+        )
     assert len(s.calls) == 1
 
 
@@ -128,3 +132,93 @@ def test_network_failure_is_secret_free(monkeypatch):
 def test_http_200_not_found_and_denied_states():
     assert html_state('<script>JSINFO={"ACT":"notFound"}</script>') == "missing"
     assert html_state('<div class="mode_denied"></div>') == "denied"
+
+
+@pytest.mark.parametrize(
+    "method,url,params,data",
+    [
+        ("GET", "https://fit-wiki.cz/doku.php", {"do": "edit"}, None),
+        ("GET", "https://fit-wiki.cz/doku.php?do=show", {"do": "logout"}, None),
+        ("POST", "https://fit-wiki.cz/doku.php", None, {"do": "save", "wikitext": "not allowed"}),
+        (
+            "POST",
+            "https://fit-wiki.cz/lib/exe/ajax.php",
+            None,
+            {"call": "mediaupload", "idx": "škola"},
+        ),
+        (
+            "POST",
+            "https://fit-wiki.cz/lib/exe/ajax.php",
+            None,
+            {"call": "index", "idx": "uživatelé"},
+        ),
+        (
+            "POST",
+            "https://fit-wiki.cz/lib/exe/ajax.php?do=edit",
+            None,
+            {"call": "index", "idx": "škola"},
+        ),
+        (
+            "POST",
+            "https://fit-wiki.cz/lib/exe/ajax.php",
+            None,
+            {"call": "index", "idx": "škola", "do": "save"},
+        ),
+        ("DELETE", "https://fit-wiki.cz/škola", None, None),
+    ],
+)
+def test_request_boundary_rejects_write_actions_in_every_parameter_channel(
+    method, url, params, data
+):
+    c, s = client([])
+    with pytest.raises(WikiError):
+        c._send(method, url, params=params, data=data)
+    assert not s.calls
+
+
+def test_namespace_index_is_read_only_post_and_recovers_expired_session():
+    c, s = client(
+        [
+            Response(LOGIN),
+            Response(LOGIN),
+            Response(LOGGED_IN),
+            Response('<ul class="idx"><li>Index</li></ul>'),
+        ]
+    )
+    c.authenticated = True
+    result = c.get_namespace_html("škola:státnice")
+    assert "Index" in result.text
+    index_calls = [call for call in s.calls if call[1].endswith("/lib/exe/ajax.php")]
+    assert len(index_calls) == 2
+    assert all(
+        call[0] == "POST" and call[2]["data"] == {"call": "index", "idx": "škola:státnice"}
+        for call in index_calls
+    )
+
+
+def test_transient_index_reads_retry_but_login_posts_do_not(monkeypatch):
+    monkeypatch.setattr("fitwiki_mcp.client.time.sleep", lambda _: None)
+    c, s = client(
+        [requests.ConnectionError("transient"), Response('<ul class="idx"><li>Index</li></ul>')]
+    )
+    c.authenticated = True
+    assert "Index" in c.get_namespace_html("škola").text
+    assert len(s.calls) == 2
+    c, s = client([requests.ConnectionError("transient")])
+    with pytest.raises(WikiError, match="UPSTREAM_UNAVAILABLE"):
+        c._send(
+            "POST",
+            "https://fit-wiki.cz/doku.php",
+            data={"do": "login", "u": "synthetic", "p": "synthetic"},
+        )
+    assert len(s.calls) == 1
+
+
+@pytest.mark.parametrize("call", ["lock", "mediaupload", "index"])
+def test_ajax_get_cannot_write_or_silently_return_the_wrong_namespace(call):
+    c, s = client([])
+    with pytest.raises(WikiError, match="INVALID_URL"):
+        c._send(
+            "GET", "https://fit-wiki.cz/lib/exe/ajax.php", params={"call": call, "idx": "škola"}
+        )
+    assert not s.calls

@@ -1,6 +1,6 @@
 """Published output schemas shared by tools and integration tests."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -112,3 +112,24 @@ class Comments(Listing):
     discussion_available: bool
     page_total: int
     total_parts: int
+
+
+class NamespaceNode(Model):
+    kind: Literal["namespace"]
+    namespace_id: str
+    title: str
+    source_url: str
+
+
+class NamespacePage(Model):
+    kind: Literal["page"]
+    page_id: str
+    title: str
+    source_url: str
+
+
+class NamespaceListing(Listing):
+    items: list[NamespaceNode | NamespacePage]
+    namespace_id: str
+    source_url: str
+    namespace_exists: bool | None

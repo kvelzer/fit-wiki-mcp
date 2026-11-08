@@ -1,6 +1,6 @@
 # FIT Wiki MCP
 
-Osobní MCP server pro **studentskou, neoficiální [FIT Wiki](https://fit-wiki.cz/)**. Umí katalog předmětů, navigaci podle sekcí, čtení stránek v Markdownu, diskuse pod stránkami, fulltext, stahování příloh, lokální OCR a předání obrázků modelu klienta pro rukopis a matematiku. Wiki nikdy neupravuje.
+Osobní MCP server pro **studentskou, neoficiální [FIT Wiki](https://fit-wiki.cz/)**. Umí katalog předmětů, strom studijních stránek včetně státnic, navigaci podle sekcí, čtení stránek v Markdownu, diskuse pod stránkami, fulltext, stahování příloh, lokální OCR a předání obrázků modelu klienta pro rukopis a matematiku. Wiki nikdy neupravuje.
 
 ## Instalace
 
@@ -57,6 +57,7 @@ Generátor jen vypíše konfiguraci; fragment sluč se stávající konfigurací
 | Nástroj | Použití |
 |---|---|
 | `list_courses(query?, cursor?, limit?, refresh?)` | Úplný stránkovaný katalog; vyhledání kódu/názvu, zachování `.21` a jazykových variant |
+| `get_namespace_index(namespace?, cursor?, limit?, refresh?)` | Přímé podstránky a podnamespaces ve studijním stromu; výchozí `škola` |
 | `get_course_index(course_id, cursor?, limit?, refresh?)` | Hierarchie sekcí a seznam odkazů předmětu |
 | `list_pages(course_id, section_id?, cursor?, limit?, refresh?)` | Odkazy vybrané sekce včetně podsekcí, stránek i příloh |
 | `get_page(page_id, section?, cursor?, max_chars?, refresh?)` | Markdown, zdroj a pokračování dlouhé stránky |
@@ -72,6 +73,14 @@ Začni `list_courses(query="BI-DBS")`, použij vrácené `course_id` v `get_cour
 Seznamy vracejí `next_cursor`, dlouhý text rovněž. Kurzor je vázaný na dotaz, obsah a proces serveru; po restartu či změně obsahu začni znovu bez něj. `read_attachment` používá čísla stran od 1 a vrací `next_page`. `mode` je `auto`, `native` nebo `local_ocr`.
 
 Fulltext přijímá běžná slova a uvozované fráze, nikoliv operátory pro změnu namespace. Vlastní index předmětu se prohledává zvlášť, protože jej wiki namespace filtr nezahrnuje. Výsledek rozlišuje `wiki_fulltext`, `course_index` a `local_transcription`. Pole `metadata.partial` upozorňuje, že OCR index pokrývá jen již zpracované materiály a úplnost cizího wiki indexu nelze zaručit.
+
+### Strom stránek mimo katalog předmětů
+
+`get_namespace_index(namespace="škola")` vrací přímé podnamespaces a stránky. U položky `kind="namespace"` použij `namespace_id` v dalším volání stejného nástroje, u `kind="page"` použij `page_id` v `get_page` nebo `get_comments`. Například `namespace="škola:státnice"` zpřístupní státnicové archivy nezávisle na katalogu předmětů. `namespace="škola:předměty:bi-pst"` projde index stránek PST i tam, kde na ně jeho přehled neodkazuje.
+
+Výsledek obsahuje jen přímé potomky viditelné účtu, podporuje kurzor/refresh a nespouští rekurzivní crawl. Prázdný výsledek vrací `namespace_exists=null`, protože neprokazuje existenci namespace ani absenci skrytých stránek. HTTP operace používá ověřený čtecí POST `call=index`; samotný GET do AJAX endpointu vrací nesprávně kořen stromu.
+
+Externí odkazy, které wiki zabalila jako `fetch.php?media=https…`, se vracejí jako odkazy na skutečný externí cíl i v Markdownu. Nejsou vydávány za interní přílohy a server je nestahuje s wiki přihlašovacími údaji.
 
 ### Komentáře a obrázky v diskusi
 
@@ -114,7 +123,7 @@ Volby prostředí a aliasy jsou v [.env.example](.env.example). `FITWIKI_DATA_DI
 
 ## Resources
 
-`fitwiki://courses`, `fitwiki://courses/{course_id}/index`, `fitwiki://pages/{page_id}` a `fitwiki://pages/{page_id}/comments` vracejí JSON ze stejné služby jako nástroje. Dvojtečky v identifikátoru lze zakódovat jako `%3A`. Pro stránkování použij nástroje; základní workflow nezávisí na podpoře resources klientem.
+`fitwiki://courses`, `fitwiki://courses/{course_id}/index`, `fitwiki://pages/{page_id}`, `fitwiki://pages/{page_id}/comments` a `fitwiki://namespaces/{namespace_id}` vracejí JSON ze stejné služby jako nástroje. Dvojtečky v identifikátoru lze zakódovat jako `%3A`. Pro stránkování použij nástroje; základní workflow nezávisí na podpoře resources klientem.
 
 ## Ověření a řešení chyb
 

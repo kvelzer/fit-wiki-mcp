@@ -31,3 +31,7 @@ _Avoid_: Ověřené řešení jako označení strojového přepisu
 **Komentář**:
 Příspěvek v diskusi pod konkrétní stránkou wiki, případně odpověď na jiný komentář. Může obsahovat text i přílohy, například obrázek řešení.
 _Avoid_: Řešení jako synonymum každého komentáře
+
+**Jmenný prostor**:
+Pojmenovaná větev hierarchie FIT Wiki sdružující stránky a další jmenné prostory, například studijní materiály ke státnicím. Jmenný prostor může existovat vedle stejnojmenné přehledové stránky.
+_Avoid_: Předmět jako synonymum každé větve wiki

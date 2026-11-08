@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 
 from .config import Config
 from .errors import WikiError
-from .urls import same_origin
+from .urls import page_id, same_origin
 
 
 @dataclass
@@ -33,6 +33,49 @@ def html_state(text: str) -> str:
     if re.search(r'id=["\']dw__login["\']', text):
         return "login"
     return "ok"
+
+
+def validate_request(
+    method: str, url: str, params: dict | None = None, data: dict | None = None
+) -> None:
+    if not same_origin(url):
+        raise WikiError("INVALID_URL", "Refused request or redirect outside FIT Wiki.")
+    parsed = urlsplit(url)
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    for key, value in (params or {}).items():
+        values = value if isinstance(value, (list, tuple)) else [value]
+        query.setdefault(key, []).extend(str(item) for item in values)
+    actions = query.get("do", [])
+    if any(action not in {"login", "show", "search", "index"} for action in actions):
+        raise WikiError("INVALID_URL", "Refused a non-reading wiki action.")
+    if method == "POST":
+        payload = data or {}
+        index = (
+            parsed.path == "/lib/exe/ajax.php"
+            and set(payload) == {"call", "idx"}
+            and payload.get("call") == "index"
+            and not actions
+            and not query.get("call")
+        )
+        if index:
+            page_id(payload["idx"])  # The only non-login POST is the study namespace index.
+        login = (
+            parsed.path in {"/", "/doku.php", "/obsah"}
+            and payload.get("do") == "login"
+            and "u" in payload
+            and "p" in payload
+            and "call" not in payload
+            and all(action == "login" for action in actions)
+        )
+        if not (index or login):
+            raise WikiError(
+                "INVALID_URL", "Only login and the read-only namespace index may use POST."
+            )
+    elif method != "GET":
+        raise WikiError("INVALID_URL", "Unsupported wiki HTTP method.")
+    if method == "GET" and parsed.path == "/lib/exe/ajax.php":
+        if query.get("call") != ["suggestions"]:
+            raise WikiError("INVALID_URL", "Refused an unapproved AJAX operation.")
 
 
 class WikiClient:
@@ -62,13 +105,7 @@ class WikiClient:
             current, verb, payload = url, method, data
             try:
                 for redirect in range(6):
-                    if not same_origin(current):
-                        raise WikiError("INVALID_URL", "Refused redirect outside FIT Wiki.")
-                    actions = parse_qs(urlsplit(current).query).get("do", [])
-                    if any(action not in {"login", "show", "search"} for action in actions):
-                        raise WikiError(
-                            "INVALID_URL", "Refused redirect to a non-reading wiki action."
-                        )
+                    validate_request(verb, current, params if redirect == 0 else None, payload)
                     pause = self.config.request_interval - (time.monotonic() - self._last_request)
                     if pause > 0:
                         time.sleep(pause)
@@ -134,7 +171,13 @@ class WikiClient:
                 raise WikiError("UPSTREAM_ERROR", "Too many wiki redirects.")
             except requests.RequestException:
                 # Do not include exception strings: these can contain submitted URLs or credentials.
-                if method != "GET" or attempt == 2 or time.monotonic() + 2**attempt >= deadline:
+                read_operation = method == "GET" or (
+                    method == "POST"
+                    and urlsplit(url).path == "/lib/exe/ajax.php"
+                    and data is not None
+                    and data.get("call") == "index"
+                )
+                if not read_operation or attempt == 2 or time.monotonic() + 2**attempt >= deadline:
                     raise WikiError(
                         "UPSTREAM_UNAVAILABLE", "Cannot reach FIT Wiki.", retryable=True
                     ) from None
@@ -170,15 +213,35 @@ class WikiClient:
             self.authenticated = True
 
     def get(self, url: str, *, params: dict | None = None, attachment: bool = False) -> Response:
+        return self._read("GET", url, params=params, attachment=attachment)
+
+    def get_namespace_html(self, namespace: str) -> Response:
+        namespace = page_id(namespace)
+        return self._read(
+            "POST",
+            self.config.base_url + "/lib/exe/ajax.php",
+            data={"call": "index", "idx": namespace},
+        )
+
+    def _read(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: dict | None = None,
+        data: dict | None = None,
+        attachment: bool = False,
+    ) -> Response:
         with self.lock:
             if not self.authenticated:
                 self.login()
             for attempt in range(2):
                 try:
                     response = self._send(
-                        "GET",
+                        method,
                         url,
                         params=params,
+                        data=data,
                         limit=self.config.attachment_limit
                         if attachment
                         else self.config.html_limit,

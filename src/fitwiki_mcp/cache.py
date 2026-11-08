@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .errors import WikiError
 
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
 
 def private_dir(path: Path) -> Path:

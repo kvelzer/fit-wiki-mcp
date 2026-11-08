@@ -16,8 +16,15 @@ from .cache import Cache, private_dir
 from .client import WikiClient
 from .config import Config
 from .errors import WikiError
-from .parsers import parse_comments, parse_courses, parse_page, parse_search, section_markdown
-from .urls import page_id, page_url
+from .parsers import (
+    parse_comments,
+    parse_courses,
+    parse_namespace,
+    parse_page,
+    parse_search,
+    section_markdown,
+)
+from .urls import namespace_url, page_id, page_url
 
 
 def folded(text: str) -> str:
@@ -225,6 +232,36 @@ class Service:
                 "Link preview limited to 100; use list_pages for the complete navigation."
             )
         return result
+
+    def get_namespace_index(
+        self,
+        namespace: str = "škola",
+        cursor: str | None = None,
+        limit: int = 30,
+        refresh: bool = False,
+    ) -> dict:
+        namespace = page_id(namespace)
+        result, meta = self.cached(
+            "namespace:" + namespace,
+            self.config.index_ttl,
+            lambda: {
+                "items": parse_namespace(self.client.get_namespace_html(namespace).text, namespace)
+            },
+            refresh,
+        )
+        items, next_cursor = self.paginate(result["items"], "namespace:" + namespace, cursor, limit)
+        meta["warnings"].append(
+            "Lists direct children visible to the current account, without recursive crawling. An empty index does not prove namespace existence or access to hidden pages."
+        )
+        return {
+            "namespace_id": namespace,
+            "items": items,
+            "total": len(result["items"]),
+            "next_cursor": next_cursor,
+            "source_url": namespace_url(namespace),
+            "namespace_exists": True if result["items"] else None,
+            "metadata": meta,
+        }
 
     def get_comments(
         self,

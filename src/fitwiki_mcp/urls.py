@@ -64,6 +64,10 @@ def same_origin(url: str) -> bool:
         return False
 
 
+def namespace_url(value: str) -> str:
+    return f"{BASE_URL}/obsah?do=index&idx={quote(page_id(value), safe='')}"
+
+
 def classify_link(href: str, base: str = BASE_URL + "/") -> dict | None:
     if not href or href.startswith(("#", "mailto:", "javascript:", "data:")):
         return None
@@ -87,6 +91,14 @@ def classify_link(href: str, base: str = BASE_URL + "/") -> dict | None:
         kind = "attachment"
     elif path == "/lib/exe/fetch.php":
         raw = query.get("media", [""])[0]
+        if raw.startswith(("https://", "http://", "//")):
+            external = urljoin(BASE_URL + "/", raw)
+            target = urlsplit(external)
+            if target.hostname and not target.username and not target.password:
+                if parsed.fragment and not target.fragment:
+                    external += "#" + parsed.fragment
+                return {"kind": "external", "url": external}
+            return None
         kind = "attachment"
     elif path in ("/doku.php", "/"):
         raw = query.get("id", ["obsah"])[0]
