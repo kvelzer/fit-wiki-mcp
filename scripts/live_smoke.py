@@ -31,6 +31,14 @@ async def run(mode: str) -> dict:
                 raise RuntimeError(f"{name}: {result.content[0].text}")
             return result
 
+        namespaces = []
+        for namespace in ["škola", "škola:státnice", "škola:předměty:bi-pst"]:
+            listing = (
+                await call("get_namespace_index", namespace=namespace, limit=50)
+            ).structured_content
+            assert listing["total"] > 0
+            namespaces.append({"namespace": namespace, "total": listing["total"]})
+        report["namespaces"] = namespaces
         # Exercise every catalog page, not just the first 30 courses.
         first = (await call("list_courses", limit=50)).structured_content
         courses = list(first["items"])
@@ -88,7 +96,15 @@ async def run(mode: str) -> dict:
             )
         ).structured_content
         selected = (
-            await call("get_comments", page_id=discussion["page_id"], author=next(item["author"] for item in discussion["items"] if item["author"] and item["attachments"]))
+            await call(
+                "get_comments",
+                page_id=discussion["page_id"],
+                author=next(
+                    item["author"]
+                    for item in discussion["items"]
+                    if item["author"] and item["attachments"]
+                ),
+            )
         ).structured_content
         assert selected["total"] == 1 and selected["items"][0]["attachments"]
         report["comments"] = {

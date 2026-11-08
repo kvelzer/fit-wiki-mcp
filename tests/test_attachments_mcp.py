@@ -103,7 +103,7 @@ def test_mcp_tools_schema_errors_resources_and_real_image_blocks(service):
     async def scenario():
         async with Client(create_server(service=service)) as client:
             tools = (await client.list_tools()).tools
-            assert len(tools) == 10
+            assert len(tools) == 11
             assert all(t.output_schema for t in tools)
             result = await client.call_tool("list_courses", {"limit": 1})
             assert not result.is_error and result.structured_content["total"] == 3
@@ -159,7 +159,7 @@ def test_real_stdio_discovery_and_secret_free_auth_error(tmp_path, mode):
         )
         async with Client(params, mode=mode, read_timeout_seconds=15) as client:
             tools = (await client.list_tools()).tools
-            assert len(tools) == 10
+            assert len(tools) == 11
             result = await client.call_tool("list_courses")
             assert result.is_error
             assert json.loads(result.content[0].text)["error"]["code"] == "AUTH_REQUIRED"

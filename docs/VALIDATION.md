@@ -4,7 +4,7 @@ Datum: 2026-11-08. Výsledky se vztahují k této implementaci a uvedeným verz�
 
 ## Automatické testy
 
-`pytest -q`: **55 passed**, bez síťových požadavků. Testy pokrývají:
+`pytest -q`: **77 passed**, bez síťových požadavků. Testy pokrývají:
 
 - autentizaci s hidden tokenem, chybný login a jednu obnovu expirované session;
 - HTTP 200 s loginem/denied/notFound, omezení streamu, 429 a tajemství prosté síťové chyby;
@@ -13,7 +13,7 @@ Datum: 2026-11-08. Výsledky se vztahují k této implementaci a uvedeným verz�
 - úplné stránkování, změněný či cizí kurzor, TTL a stale fallback jen při síťové chybě;
 - skutečnou extrakci syntetického PDF a lokální OCR syntetického obrázku, render/crop a hash původu;
 - ochranu celostránkového přepisu před výřezem, změnu originálu a hledání v médiích odkazovaných jiným namespace;
-- deset výstupních schémat, chyby nástrojů, resources a skutečný obrazový MCP blok;
+- jedenáct výstupních schémat, chyby nástrojů, resources a skutečný obrazový MCP blok;
 - samostatný stdio subprocess s automatickým discovery i starším handshake, včetně chyby chybějící autentizace při jiném pracovním adresáři.
 
 `ruff check src tests scripts mcp_server.py` prošel. `pip check` nehlásil rozbité závislosti.
@@ -25,18 +25,28 @@ Příkazy `scripts/live_smoke.py --live` a `--live --mode legacy` prošly proti 
 | Krok | Pozorování |
 |---|---|
 | Protokol | Automaticky `2026-07-28`; legacy `2025-11-25` |
-| Discovery | 10 nástrojů po doplnění komentářů |
+| Discovery | 11 nástrojů včetně komentářů a stromu namespaces |
 | Katalog | 287 předmětů; přes kurzory navštívených všech 287 |
 | BI-DBS | 21 sekcí, 81 navigačních položek včetně příloh, 16 359 znaků Markdownu |
-| BI-AG1 | 21 sekcí, 273 položek, 45 131 znaků Markdownu s pokračováním |
+| BI-AG1 | 21 sekcí, 278 položek, 44 792 znaků Markdownu s pokračováním |
 | BI-ASB.21 | Historická varianta zachována; 9 sekcí, 21 položek |
 | Hledání SQL v BI-DBS | 2 výsledky: vlastní index i podstránka z wiki fulltextu |
 | Negativní dotaz | 0 výsledků, nikoliv chyba parseru |
 | PDF příloha | 95 127 B, 2 strany, 2311 znaků nativního textu první strany |
 | Obrazový výstup | Skutečný image block, 1414 × 2000 px |
-| Čerstvá cache | Opakované čtení přibližně 8–9 ms přes MCP |
+| Čerstvá cache | Opakované čtení přibližně 6–7 ms přes MCP |
 
 Počty odkazů jsou navigační položky včetně typů médií a vazby na sekce, nikoliv deklarovaný počet unikátních stránek celé wiki. Žádný plošný crawl nebyl proveden. Přihlašovací údaje ani soukromé texty nejsou součástí tohoto reportu.
+
+## Opakovaný průzkum a vylepšení (0.2.0)
+
+[Průzkum a provedený plán](REEXPLORATION.md) popisují zjištěné mezery a jejich opravy. Nový `get_namespace_index` i resource byly ověřeny přes skutečný stdio subprocess v obou uvedených protokolech: `škola` 38 přímých položek, `škola:státnice` 94 a `škola:předměty:bi-pst` 318. Neexistující zkušební namespace vrátil prázdný index a `namespace_exists=null`.
+
+Izolovaný Playwright s Chromium 156.0.8078.4 otevřel přihlášenou wiki, rozbalil školu a státnice a zachytil skutečné POST požadavky `call=index` s odpovídajícím `idx`. Na stránce PST našel dva komentáře; obrázek ve vybraném komentáři byl před rozbalením skrytý a po kliknutí viditelný. Cookies byly předány pouze v paměti. Playwright je pomocný nástroj v ignorovaném testovacím prostředí, nikoliv runtime závislost serveru.
+
+Regrese pokrývají přímé potomky, deduplikaci, scope, cache/refresh/stale, prázdný a chybný index, MCP nástroj/resource, externí odkazy zabalené jako média a prioritu hlavního kontejneru. HTTP testy kontrolují URL, query `params` i POST payload, odmítnutí jiných operací, obnovu přihlášení a omezené opakování čtecího POST bez opakování loginu. Parser cache má novou verzi, aby se nepoužily staré výsledky.
+
+Verze 0.2.0 byla sestavena jako wheel i sdist; sdist zahrnuje nový kořenový `AGENTS.md`. Ostatní klientské modelové scénáře v tabulce níže pocházejí z předchozího ověření a touto změnou nebyly znovu spouštěny.
 
 ## Doplnění diskusí (0.1.1)
 
@@ -88,3 +98,17 @@ První headless pokusy Codexu/Antigravity správně odmítly nástroje vyžaduj�
 - Lokální index přepisů je omezen na 5000 záznamů. Nevytváří úplný index všech skenů wiki. Plná historie dříve známých vazeb médií na stránky může zůstat v cache do jejího smazání; nejde o živě ověřené backlinks.
 - Zrušení dlouhého synchronního čtení/OCR je omezené timeoutem lokálního procesu; nejde o záruku okamžitého přerušení každé externí knihovny. Textová/resource data vrací zdroj a stav čerstvosti.
 - Plný klientský test Claude Code, pi a OpenCode vyžaduje dostupný modelový účet/kvótu; Antigravity GUI nebylo dostupné jako ověřená relace. Tyto mezery nejsou vydávány za úspěšné testy.
+
+## Kontrola před zveřejněním zdrojů
+
+V celé publikovatelné historii byly zkontrolovány tracked soubory proti aktuálním přihlašovacím údajům, markerům soukromých klíčů/tokenů a osobním odkazům. Kontrola nenašla shodu s aktuálními údaji z `.env` ani známými markery klíčů/tokenů; nejde o záruku detekce všech možných tajemství. Skutečné jméno autora komentáře bylo odstraněno z příkladů i historie. Živý test přebírá autora přímo z vráceného komentáře s přílohou a nevypisuje jej.
+
+Po úpravě prošlo všech 77 offline testů, Ruff lint i kontrola formátování. Kontrola integrity Git historie prošla. Aktuální živý stdio smoke test rovněž prošel včetně filtrování autora převzatého z výsledku a následného čtení přílohy. `.env`, soukromá data a lokální zálohy nejsou součástí publikovatelné historie.
+
+### Rozšířený audit publikovatelné historie
+
+Kontrola všech čtyř commitů a 70 historických verzí souborů zahrnula autorství i committer metadata, původní identifikátory, aktuální údaje účtu, dostupné account/session hodnoty z jednoho autorizovaného čtení wiki a jejich URL/Base64 varianty. V publikovatelné historii nebyla nalezena shoda. Publikovatelnou referencí je pouze `main`; soukromá záloha původní historie není Git reference a je ignorována.
+
+Nezávislý skener `detect-secrets` 1.5.0 prohledal všechny historické bloby. Dva kandidáti byli ručně prověřeni: povolená abeceda OCR jazyků a záměrně syntetický řetězec v testu konfigurace. Nejde o skutečná přihlašovací data. Skener a jeho redigované výsledky zůstávají soukromými pomocnými nástroji, nikoliv runtime závislostí či součástí repozitáře.
+
+Pro distribuci jsou sestaveny nové wheel/sdist z aktuálních zdrojů; starší lokální distribuce nejsou určeny ke zveřejnění. Kontrola archivů zahrnuje jejich názvy souborů i obsah. Zveřejnění zdrojů neznamená zveřejnění `.env`, lokálního datového adresáře, záloh, logů ani konfigurací osobních klientů. Tento audit ověřuje konkrétní obsah, nikoliv nemožnost propojení identity z externích dat.

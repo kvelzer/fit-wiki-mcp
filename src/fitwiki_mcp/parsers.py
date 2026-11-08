@@ -1,13 +1,13 @@
 """DokuWiki XHTML parsers with preserved heading structure and resolved links."""
 
 import re
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 from bs4 import BeautifulSoup, Tag
 from markdownify import MarkdownConverter
 
 from .errors import WikiError
-from .urls import classify_link, identity
+from .urls import classify_link, identity, namespace_url, same_origin
 
 
 class Converter(MarkdownConverter):
@@ -20,8 +20,21 @@ class Converter(MarkdownConverter):
 
 def content_root(html: str) -> tuple[BeautifulSoup, Tag]:
     soup = BeautifulSoup(html, "html.parser")
-    root = soup.select_one(
-        ".dokuwiki .page, .dokuwiki div.page, div.page, main article, article, main, .dokuwiki"
+    # CSS selector unions return document order, not the requested priority.
+    root = next(
+        (
+            match
+            for selector in (
+                ".dokuwiki .page",
+                "div.page",
+                "main article",
+                "article",
+                "main",
+                ".dokuwiki",
+            )
+            if (match := soup.select_one(selector)) is not None
+        ),
+        None,
     )
     if root is None:
         # DokuWiki XHTML export uses body > div.dokuwiki; never silently parse arbitrary login body.
@@ -100,7 +113,11 @@ def parse_page(html: str, base: str, ident: str) -> dict:
                     item["section_id"] = stack[-1][1] if stack else None
                     links.append(item)
                     seen.add(key)
-            element["href"] = urljoin(base, element["href"])
+            element["href"] = (
+                item["url"]
+                if item and item["kind"] == "external"
+                else urljoin(base, element["href"])
+            )
         if element.name == "img" and element.get("src"):
             source = urljoin(base, element["src"])
             item = link_item(source, element.get("alt", ""), base)
@@ -293,3 +310,56 @@ def parse_comments(html: str, base: str, ident: str) -> dict:
             }
         )
     return {"page_id": ident, "source_url": base, "discussion_available": True, "items": comments}
+
+
+def parse_namespace(html: str, namespace: str) -> list[dict]:
+    """Parse a single authenticated AJAX index fragment without recursively expanding it."""
+    soup = BeautifulSoup(html, "html.parser")
+    if not html.strip():
+        return []
+    nodes = soup.select("a.idx_dir[href], a.wikilink1[href]")
+    if not nodes or soup.select_one("html, form, script, .dokuwiki"):
+        raise WikiError("PARSE_ERROR", "Expected a namespace index fragment.")
+    results, seen = [], set()
+    for link in nodes:
+        href = urljoin("https://fit-wiki.cz/", link["href"])
+        if not same_origin(href):
+            continue
+        title = link.get_text(" ", strip=True)
+        if "idx_dir" in link.get("class", []):
+            raw = parse_qs(urlsplit(href).query).get("idx", [""])[0]
+            try:
+                ident = identity(raw)
+            except WikiError:
+                continue
+            if ident.rpartition(":")[0] != namespace:
+                continue
+            item = {
+                "kind": "namespace",
+                "namespace_id": ident,
+                "source_url": namespace_url(ident),
+                "title": title or ident,
+            }
+        else:
+            parsed = classify_link(href)
+            if not parsed or parsed["kind"] != "page":
+                continue
+            ident = parsed["id"]
+            item = {
+                "kind": "page",
+                "page_id": ident,
+                "source_url": parsed["url"],
+                "title": title or ident,
+            }
+        if ident.rpartition(":")[0] != namespace:
+            continue
+        key = (item["kind"], ident)
+        if key not in seen:
+            results.append(item)
+            seen.add(key)
+    if not results:
+        raise WikiError(
+            "PARSE_ERROR",
+            "Index fragment did not contain direct children of the requested namespace.",
+        )
+    return results
