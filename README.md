@@ -139,3 +139,7 @@ Běžné testy jsou offline a používají syntetické fixtures. Live test je ex
 Chyby nástroje mají `isError=true` a JSON s `error.code`, `message` a `retryable`. `AUTH_REQUIRED` znamená chybějící údaje/session, `AUTH_FAILED` neúspěšný login, `ACCESS_DENIED` zamítnutý přístup, `NOT_FOUND` chybějící materiál. `INVALID_CURSOR` vyřeš novým požadavkem bez kurzoru; `TOO_LARGE` užším rozsahem; `BUSY` opakováním po skončení jiného renderu. `PROCESS_TIMEOUT` nebo nečitelný lokální OCR řeš menším rozsahem či vision cestou. Stav HTTP 200 server nepovažuje automaticky za úspěšné čtení.
 
 Obsah wiki je neoficiální. U požadavků, klasifikace a aktuálních oznámení ověř oficiální courses portál. Licence a případné výjimky zůstávají vlastností originálních materiálů. Hromadný archiv, generování nových PDF, samostatná OCR služba a sdílené HTTP hostování jsou mimo tuto verzi.
+
+## Licence
+
+Zdrojový kód a dokumentace projektu jsou dostupné pod [licencí MIT](LICENSE), Copyright (c) 2026 kvelzer. Licence projektu se nevztahuje na obsah FIT Wiki ani stažené materiály; ty si zachovávají vlastní licence a podmínky.

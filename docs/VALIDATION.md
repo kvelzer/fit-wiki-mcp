@@ -87,6 +87,7 @@ První headless pokusy Codexu/Antigravity správně odmítly nástroje vyžaduj�
 - `python -m build` vytvořil sdist i univerzální wheel; build backend setuptools 84.2.1 je připnutý.
 - Wheel byl instalován do samostatného čistého venv se zamčenými závislostmi; kontrola CLI a testů se provádí vůči instalovanému balíčku.
 - Sdist zahrnuje dokumentaci, launcher, skripty a syntetické fixtures. Wheel ani sdist nezahrnují `.env`, cookies, cache, stažené materiály nebo privátní klientské logy.
+- Licence projektu je MIT, držitel copyrightu `kvelzer`. Po doplnění licence byly znovu sestaveny wheel i sdist; oba zahrnují `LICENSE` a metadata wheelu obsahují `License-Expression: MIT`. Licence se nevztahuje na získaný obsah wiki.
 
 ## Zbývající omezení
 
