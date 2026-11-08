@@ -4,7 +4,7 @@ Datum: 2026-11-08. Výsledky se vztahují k této implementaci a uvedeným verz�
 
 ## Automatické testy
 
-`pytest -q`: **48 passed**, bez síťových požadavků. Testy pokrývají:
+`pytest -q`: **55 passed**, bez síťových požadavků. Testy pokrývají:
 
 - autentizaci s hidden tokenem, chybný login a jednu obnovu expirované session;
 - HTTP 200 s loginem/denied/notFound, omezení streamu, 429 a tajemství prosté síťové chyby;
@@ -13,7 +13,7 @@ Datum: 2026-11-08. Výsledky se vztahují k této implementaci a uvedeným verz�
 - úplné stránkování, změněný či cizí kurzor, TTL a stale fallback jen při síťové chybě;
 - skutečnou extrakci syntetického PDF a lokální OCR syntetického obrázku, render/crop a hash původu;
 - ochranu celostránkového přepisu před výřezem, změnu originálu a hledání v médiích odkazovaných jiným namespace;
-- devět výstupních schémat, chyby nástrojů, resources a skutečný obrazový MCP blok;
+- deset výstupních schémat, chyby nástrojů, resources a skutečný obrazový MCP blok;
 - samostatný stdio subprocess s automatickým discovery i starším handshake, včetně chyby chybějící autentizace při jiném pracovním adresáři.
 
 `ruff check src tests scripts mcp_server.py` prošel. `pip check` nehlásil rozbité závislosti.
@@ -25,7 +25,7 @@ Příkazy `scripts/live_smoke.py --live` a `--live --mode legacy` prošly proti 
 | Krok | Pozorování |
 |---|---|
 | Protokol | Automaticky `2026-07-28`; legacy `2025-11-25` |
-| Discovery | 9 nástrojů |
+| Discovery | 10 nástrojů po doplnění komentářů |
 | Katalog | 287 předmětů; přes kurzory navštívených všech 287 |
 | BI-DBS | 21 sekcí, 81 navigačních položek včetně příloh, 16 359 znaků Markdownu |
 | BI-AG1 | 21 sekcí, 273 položek, 45 131 znaků Markdownu s pokračováním |
@@ -37,6 +37,14 @@ Příkazy `scripts/live_smoke.py --live` a `--live --mode legacy` prošly proti 
 | Čerstvá cache | Opakované čtení přibližně 8–9 ms přes MCP |
 
 Počty odkazů jsou navigační položky včetně typů médií a vazby na sekce, nikoliv deklarovaný počet unikátních stránek celé wiki. Žádný plošný crawl nebyl proveden. Přihlašovací údaje ani soukromé texty nejsou součástí tohoto reportu.
+
+## Doplnění diskusí (0.1.1)
+
+Přidán read-only `get_comments` a resource `fitwiki://pages/{page_id}/comments`. Sedm nových testů ověřuje autora/čas, odpovědi včetně vnořených vláken, anonymní příspěvky, skrytý obsah a deduplikaci příloh, odstranění formulářů, neznámé rozložení, prázdnou/nedostupnou diskusi, filtrování bez diakritiky, pokračování dlouhého textu, cache/refresh a MCP výstup.
+
+Živý test přes skutečný stdio subprocess na stránce PST z 11. 10. 2023 našel 2 komentáře; filtr podle autora převzatého z výsledku vrátil 1 příspěvek. Odpověď měla správné `parent_id`, skrytý obrázek byl dostupný v `attachments` a přímé navazující volání `get_material_image` vrátilo skutečný image block. Prošel i resource a cache hit. Soukromý obsah komentářů není uložen v repozitáři; fixtures jsou syntetické.
+
+Komentáře se čtou z běžného HTML, nikoliv z XHTML exportu. Jejich původní text se neplete do Markdownu hlavní stránky. Cache diskuse má TTL nejvýše 300 s a zachovává původní politiku odmítnutí přístupu a označené starší kopie při síťovém výpadku. Samostatný klient potřebuje po aktualizaci nové MCP discovery pro zobrazení nástroje.
 
 ## OCR a vision
 

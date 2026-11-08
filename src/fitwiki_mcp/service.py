@@ -16,7 +16,7 @@ from .cache import Cache, private_dir
 from .client import WikiClient
 from .config import Config
 from .errors import WikiError
-from .parsers import parse_courses, parse_page, parse_search, section_markdown
+from .parsers import parse_comments, parse_courses, parse_page, parse_search, section_markdown
 from .urls import page_id, page_url
 
 
@@ -211,6 +211,7 @@ class Service:
             {
                 "markdown": selected[0] if selected else "",
                 "total_chars": len(text),
+                "comments_tool": "get_comments",
                 "next_cursor": next_cursor,
                 "metadata": meta,
             }
@@ -224,6 +225,78 @@ class Service:
                 "Link preview limited to 100; use list_pages for the complete navigation."
             )
         return result
+
+    def get_comments(
+        self,
+        ident: str,
+        author: str | None = None,
+        comment_id: str | None = None,
+        cursor: str | None = None,
+        limit: int = 10,
+        max_chars: int = 5000,
+        refresh: bool = False,
+    ) -> dict:
+        ident = page_id(ident)
+        if not 1 <= limit <= 20 or not 100 <= max_chars <= 10000:
+            raise WikiError(
+                "INVALID_ARGUMENT", "Comments limit must be 1..20; max_chars must be 100..10000."
+            )
+        if author is not None and (not author.strip() or len(author) > 200):
+            raise WikiError("INVALID_ARGUMENT", "Author filter must contain 1..200 characters.")
+        source = page_url(ident)
+        value, meta = self.cached(
+            "comments:v1:" + ident,
+            min(self.config.page_ttl, 300),
+            lambda: parse_comments(self.client.get(source).text, source, ident),
+            refresh,
+        )
+        comments = value["items"]
+        page_total = len(comments)
+        if author:
+            comments = [c for c in comments if folded(author.strip()) in folded(c["author"] or "")]
+        if comment_id:
+            comments = [c for c in comments if c["comment_id"] == comment_id]
+            if not comments:
+                raise WikiError("NOT_FOUND", "Comment not found for this page/filter.")
+        parts = []
+        with self.lock:
+            for comment in comments:
+                for attachment in comment["attachments"]:
+                    key = "media_refs:" + attachment["attachment_id"]
+                    previous = self.cache.get(key)
+                    pages = previous["value"]["pages"] if previous else []
+                    if ident not in pages:
+                        self.cache.put(key, {"pages": sorted(set(pages + [ident]))})
+                text = comment["markdown"]
+                chunks = [text[i : i + max_chars] for i in range(0, len(text), max_chars)] or [""]
+                for index, chunk in enumerate(chunks, 1):
+                    parts.append(
+                        {
+                            **comment,
+                            "markdown": chunk,
+                            "part": index,
+                            "parts": len(chunks),
+                            "total_chars": len(text),
+                        }
+                    )
+        items, next_cursor = self.paginate(
+            parts, f"comments:{ident}:{author}:{comment_id}:{max_chars}", cursor, limit
+        )
+        if any(c["attachments"] for c in comments):
+            meta["warnings"].append(
+                "Comments include attachments; their images/text are not automatically transcribed. Use read_attachment/get_material_image with attachment_id."
+            )
+        return {
+            "page_id": ident,
+            "source_url": source + "#discussion__section",
+            "discussion_available": value["discussion_available"],
+            "items": items,
+            "total": len(comments),
+            "page_total": page_total,
+            "total_parts": len(parts),
+            "next_cursor": next_cursor,
+            "metadata": meta,
+        }
 
     def get_course_index(
         self, course_id: str, cursor: str | None = None, limit: int = 30, refresh: bool = False

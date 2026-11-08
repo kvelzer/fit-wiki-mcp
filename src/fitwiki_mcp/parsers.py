@@ -196,3 +196,100 @@ def parse_search(html: str, base: str, scope: str) -> list[dict]:
         )
         seen.add(ident)
     return results
+
+
+def parse_comments(html: str, base: str, ident: str) -> dict:
+    """Read the discussion plugin from the normal page; XHTML exports omit it."""
+    content_root(html)  # A changed/login/error layout must not look like an empty discussion.
+    soup = BeautifulSoup(html, "html.parser")
+    wrapper = soup.select_one("#comment_wrapper, .comment_wrapper, #discussion__comments")
+    if wrapper is None:
+        if soup.select_one(".hentry .comment_head, .hentry .comment_body"):
+            raise WikiError("PARSE_ERROR", "Unrecognized wiki discussion container.")
+        return {"page_id": ident, "source_url": base, "discussion_available": False, "items": []}
+    entries = wrapper.select(".hentry")
+    by_node, comments, seen_ids = {}, [], set()
+    for entry in entries:
+        header = next(
+            (h for h in entry.select(".comment_head") if h.find_parent(class_="hentry") is entry),
+            None,
+        )
+        body = next(
+            (b for b in entry.select(".comment_body") if b.find_parent(class_="hentry") is entry),
+            None,
+        )
+        if header is None or body is None:
+            raise WikiError("PARSE_ERROR", "A discussion comment is missing its header or body.")
+        anchor = header.select_one('[id^="comment_"], [name^="comment_"]')
+        cid = (anchor.get("id") or anchor.get("name")) if anchor else entry.get("id")
+        if not cid or not re.fullmatch(r"[\w-]{1,200}", cid) or cid in seen_ids:
+            raise WikiError(
+                "PARSE_ERROR", "A discussion comment has a missing or duplicate identifier."
+            )
+        parent_id = None
+        for ancestor in entry.parents:
+            if ancestor is wrapper:
+                break
+            if id(ancestor) in by_node:
+                parent_id = by_node[id(ancestor)]
+                break
+            if "comment_replies" in ancestor.get("class", []):
+                previous = ancestor.find_previous_sibling(class_="hentry")
+                if previous is not None and id(previous) in by_node:
+                    parent_id = by_node[id(previous)]
+                    break
+        by_node[id(entry)] = cid
+        seen_ids.add(cid)
+        author = header.select_one(".fn")
+        published = header.select_one(".published, time")
+        timestamp = (
+            (
+                published.get("datetime")
+                or published.get("title")
+                or published.get_text(" ", strip=True)
+            )
+            if published
+            else None
+        )
+        # Copy the body: removing controls must not alter the reply hierarchy used above.
+        clean = BeautifulSoup(str(body), "html.parser")
+        for control in clean.select(
+            "script, style, form, .comment_buttons, .hiddenHead, .hiddenElements"
+        ):
+            control.decompose()
+        links, attachments, seen = [], [], set()
+        for element in clean.select("a[href], img[src]"):
+            attr = "href" if element.name == "a" else "src"
+            nested_image = element.find("img") if element.name == "a" else None
+            title = element.get_text(" ", strip=True) or element.get("alt", "")
+            if not title and nested_image:
+                title = nested_image.get("alt", "")
+            item = link_item(element[attr], title, base)
+            if item:
+                key = (item["kind"], item.get("id", item["url"]))
+                if key not in seen:
+                    links.append(item)
+                    if item["kind"] == "attachment":
+                        attachments.append(
+                            {
+                                "attachment_id": item["id"],
+                                "source_url": item["url"],
+                                "title": item["title"],
+                            }
+                        )
+                    seen.add(key)
+            element[attr] = item["url"] if item else urljoin(base, element[attr])
+        markdown = Converter(heading_style="ATX", bullets="-").convert(str(clean)).strip()
+        comments.append(
+            {
+                "comment_id": cid,
+                "parent_id": parent_id,
+                "author": author.get_text(" ", strip=True) if author else None,
+                "published_at": timestamp,
+                "source_url": base + "#" + cid,
+                "markdown": markdown,
+                "links": links,
+                "attachments": attachments,
+            }
+        )
+    return {"page_id": ident, "source_url": base, "discussion_available": True, "items": comments}
