@@ -6,7 +6,7 @@ This project exposes the student-run `fit-wiki.cz` through a personal stdio MCP 
 
 Use FIT Wiki for historical tests, student solutions and community notes. Official requirements, grading and announcements belong to `courses.fit.cvut.cz` / the courses MCP. Do not present student content as an official requirement or infer that an archived test is the current test.
 
-Read `README.md` for supported workflows, `GLOSSARY.md` for domain vocabulary, and relevant decisions in `docs/adr/`. Source code is authoritative for the implemented API; research and validation documents describe dated observations. Do not copy the older fitwiki tool list from `../courses-mcp/AGENTS.md`.
+Read `README.md` for supported workflows and `GLOSSARY.md` for domain vocabulary. Source code is authoritative for the implemented API. Keep research notes and validation records in the ignored local `docs/` directory. Do not copy the older fitwiki tool list from `../courses-mcp/AGENTS.md`.
 
 ## Architecture
 
@@ -66,7 +66,7 @@ Live validation is opt-in and read-only:
 
 Use the relevant small live scenario after a site integration change. Report metadata and assertions, not private study content. Test parsing with synthetic equivalents of observed markup. For public contract changes update schemas, server instructions, resources, discovery tests, README and relevant scripts. Keep package version and installed editable metadata consistent; update the lock only when dependencies change.
 
-Before delivery, run applicable lint/tests, check the diff and local documentation links, and ensure credentials/private artifacts are excluded. Build with `.venv/bin/python -m build` when packaging changes. Record actual verification and limitations in `docs/VALIDATION.md`; do not turn an unavailable model login, quota or GUI into a claimed pass.
+Before delivery, run applicable lint/tests, check the diff and local documentation links, and ensure credentials/private artifacts are excluded. Build with `.venv/bin/python -m build` when packaging changes. Record actual verification and limitations in the local validation notes; do not turn an unavailable model login, quota or GUI into a claimed pass.
 
 ## Working style
 

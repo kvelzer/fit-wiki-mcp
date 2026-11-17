@@ -40,7 +40,7 @@ Druhý příkaz spustí stdio server a čeká na MCP zprávy. Logy chodí na std
 
 ## Klienti
 
-Návody a výsledky ověření pro **Codex, Claude Code, OpenCode v2, pi a Google Antigravity** jsou v [docs/CLIENTS.md](docs/CLIENTS.md). Konkrétní fragment s absolutními cestami vygeneruješ takto:
+Konfigurační fragment s absolutními cestami pro **Codex, Claude Code, OpenCode v2, pi a Google Antigravity** vygeneruješ takto:
 
 ```bash
 .venv/bin/python scripts/client_config.py codex
@@ -109,7 +109,7 @@ Přílohy jsou v `attachments` s hotovým `attachment_id` pro `read_attachment` 
 
 `region` je `[left, top, right, bottom]` v rozsahu 0..1. Obraz pro klienta má nejvýše 2000 px na delší straně; pro drobné písmo použij výřez. Lokální render/OCR běží po jedné straně a s omezeným časem, velikostí a souběžností. Nečitelný sken může vrátit `status=needs_vision` místo vymyšleného textu.
 
-Server nevolá samostatné OCR API. Model klienta však může běžet u vzdáleného poskytovatele; tato cesta proto není zárukou lokálního zpracování. Bez modelu s viděním je k dispozici lokální OCR a originál, kvalita rukopisu/matematiky tím není garantovaná. [Rozhodnutí a kompromisy](docs/adr/0001-ocr-local-or-client-vision.md).
+Server nevolá samostatné OCR API. Model klienta však může běžet u vzdáleného poskytovatele; tato cesta proto není zárukou lokálního zpracování. Bez modelu s viděním je k dispozici lokální OCR a originál, kvalita rukopisu/matematiky tím není garantovaná.
 
 ## Data, cache a limity
 
@@ -134,7 +134,7 @@ Volby prostředí a aliasy jsou v [.env.example](.env.example). `FITWIKI_DATA_DI
 .venv/bin/python scripts/live_smoke.py --live --mode legacy
 ```
 
-Běžné testy jsou offline a používají syntetické fixtures. Live test je explicitní a využije `.env`; vypisuje jen technická metadata. [Skutečně provedené ověření a limity](docs/VALIDATION.md).
+Běžné testy jsou offline a používají syntetické fixtures. Live test je explicitní a využije `.env`; vypisuje jen technická metadata.
 
 Chyby nástroje mají `isError=true` a JSON s `error.code`, `message` a `retryable`. `AUTH_REQUIRED` znamená chybějící údaje/session, `AUTH_FAILED` neúspěšný login, `ACCESS_DENIED` zamítnutý přístup, `NOT_FOUND` chybějící materiál. `INVALID_CURSOR` vyřeš novým požadavkem bez kurzoru; `TOO_LARGE` užším rozsahem; `BUSY` opakováním po skončení jiného renderu. `PROCESS_TIMEOUT` nebo nečitelný lokální OCR řeš menším rozsahem či vision cestou. Stav HTTP 200 server nepovažuje automaticky za úspěšné čtení.
 
